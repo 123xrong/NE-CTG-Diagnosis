@@ -1,8 +1,8 @@
 import argparse
 import torch
 from load_and_preprocess_data import load_and_preprocess_data
-from models import CNN, EnhancedCNN, CNN_LSTM, CNN1D, EnhancedCNN1D, FFN, TimeSeriesTransformer  # Import FFN and Transformer
-from train import train_model
+from models import CNN, EnhancedCNN, CNN_LSTM, CNN1D, EnhancedCNN1D, TimeSeriesTransformer
+from fineTuning import train_model
 from evaluate import evaluate_model
 from torch.utils.data import DataLoader, TensorDataset
 import matplotlib.pyplot as plt
@@ -19,12 +19,24 @@ def get_model(model_type, input_size, features, d_model, seq_len):
         return CNN1D(input_size=input_size)
     elif model_type == 'enhanced_cnn1d':
         return EnhancedCNN1D(input_size=input_size)
-    elif model_type == 'ffn':
-        input_dim = input_size * len(features)  # Adjust for the number of features
-        return FFN(input_size=input_dim)
     elif model_type == 'transformer':
         return TimeSeriesTransformer(input_size=len(features), num_heads=4, num_layers=2, d_model=d_model, seq_len=seq_len)
 
+def setup_fine_tuning(model, fine_tuning_type):
+    if fine_tuning_type == 'full_ft':
+        # All parameters are trainable
+        for param in model.parameters():
+            param.requires_grad = True
+    elif fine_tuning_type == 'linear_probing':
+        # Freeze all parameters except for the classifier layer
+        for name, param in model.named_parameters():
+            param.requires_grad = 'classifier' in name
+    elif fine_tuning_type == 'lora':
+        # Only train the LoRA layers and the classifier layer
+        for name, param in model.named_parameters():
+            param.requires_grad = 'lora_A' in name or 'lora_B' in name or 'classifier' in name
+    else:
+        raise ValueError(f"Unsupported fine tuning type: {fine_tuning_type}")
 
 def main():
     # Parse command-line arguments
@@ -43,6 +55,7 @@ def main():
     parser.add_argument('--num_layers', type=int, default=2, help='Number of transformer layers (default: 2)')
     parser.add_argument('--num_channels', type=int, default=2, help='Number of channels of the input (default: 2)')
     parser.add_argument('--pretrain_epochs', type=int, default=10, help='Number of epochs to pretrain the model (default: 10)')
+    parser.add_argument('--fine_tuning_type', type=str, choices=['full_ft', 'linear_probing', 'lora'], required=True, help='Choose the fine-tuning method: full fine-tuning, linear probing, or LoRA')
 
     args = parser.parse_args()
     # Load and preprocess data (with or without segmentation)
@@ -56,32 +69,31 @@ def main():
         args.private_data_path, features_to_use=args.features, use_segmentation=args.use_segmentation, window_size=args.window_size,
     )
 
-    # Create DataLoaders
+    # Create DataLoaders for public and private datasets
     public_train_loader = DataLoader(TensorDataset(public_X_train, public_y_train), batch_size=args.batch_size, shuffle=True)
     public_test_loader = DataLoader(TensorDataset(public_X_test, public_y_test), batch_size=args.batch_size, shuffle=False)  # For evaluating pretraining
+
+    private_train_loader = DataLoader(TensorDataset(private_X_train, private_y_train), batch_size=args.batch_size, shuffle=True)
+    private_test_loader = DataLoader(TensorDataset(private_X_test, private_y_test), batch_size=args.batch_size, shuffle=False)  # For evaluating fine-tuning
 
     # Define model. Set device (GPU if available)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = get_model(args.model_type, args.input_size, args.features, args.d_model, args.input_size).to(device)
-
+    
+    # Pretraining
     print(f"Pretraining {args.model_type} on public dataset for {args.pretrain_epochs} epochs")
     train_model(model, public_train_loader, public_test_loader, args.input_size, device, num_epochs=args.pretrain_epochs)
-
-    # Save pretrained model weights
     torch.save(model.state_dict(), 'pretrained_model.pth')
 
-    # Optionally reset model weights here if necessary or create a fresh model instance
-    # model = get_model(args.model_type, args.input_size, args.features, args.d_model, args.input_size).to(device)
-    model.load_state_dict(torch.load('pretrained_model.pth'))  # Load the pretrained weights
+    # Load the pretrained model and setup for fine-tuning
+    model.load_state_dict(torch.load('pretrained_model.pth'))
+    setup_fine_tuning(model, args.fine_tuning_type)  # Set up model for the specific fine-tuning approach
 
-    # Fine-tuning on private data
-    private_train_loader = DataLoader(TensorDataset(private_X_train, private_y_train), batch_size=args.batch_size, shuffle=True)
-    private_test_loader = DataLoader(TensorDataset(private_X_test, private_y_test), batch_size=args.batch_size, shuffle=False)  # For evaluating fine-tuning
-
+    # Fine-tuning
     print(f"Fine-tuning {args.model_type} on private dataset for {args.epochs} epochs")
     train_model(model, private_train_loader, private_test_loader, args.input_size, device, num_epochs=args.epochs)
 
-    # Evaluate the model on private test set
+    # Evaluation
     print(f"Evaluating {args.model_type} on private test set")
     evaluate_model(model, private_test_loader, device)
 
