@@ -227,34 +227,30 @@ class EnhancedCNN1D(nn.Module):
         return x
 
 class TimeSeriesTransformer(nn.Module):
-    def __init__(self, input_size, num_heads=4, num_layers=2, d_model=64, seq_len=7200):
+    def __init__(self, input_size, num_heads=4, num_layers=2, d_model=64, seq_len=1):
         super(TimeSeriesTransformer, self).__init__()
         
-        # Embedding layer to project input to model dimension
-        self.embedding = nn.Sequential(
-            nn.Linear(input_size, d_model)  # Project input to d_model dimensions
-        )
+        # Embedding layer to project input features to model dimensions
+        self.embedding = nn.Linear(input_size, d_model)
     
         # Transformer encoder setup
         encoder_layer = nn.TransformerEncoderLayer(d_model=d_model, nhead=num_heads)
         self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
 
         # Classifier
-        self.classifier = nn.Sequential(
-            nn.Linear(d_model * seq_len, 2)  # Assume flattening happens before this layer
-        )
-        
+        self.classifier = nn.Linear(d_model * seq_len, 2)  # Direct linear transformation for classification
+
     def forward(self, x):
-        # Assume x is (batch_size, seq_len, input_size)
-        x = x.transpose(1, 2)  # Transpose to (batch_size, input_size, seq_len)
-        x = self.embedding(x)  # Apply embedding
-        x = x.permute(2, 0, 1)  # Permute to (seq_len, batch_size, d_model) for transformer
+        # x shape: (batch_size, feature_num, seq_len)
+        x = x.permute(0, 2, 1)  # Permute to (batch_size, seq_len, feature_num)
+        x = self.embedding(x)  # Embedding to project features (batch_size, seq_len, d_model), (32, 7200, 64)
+        x = x.permute(1, 0, 2)  # Permute to (seq_len, batch_size, d_model) for transformer (7200, 32, 64)
 
         x = self.transformer(x)  # Pass through transformer
 
-        x = x.permute(1, 0, 2)  # Permute back to (batch_size, seq_len, d_model)
-        x = x.flatten(start_dim=1)  # Flatten all sequence steps and d_model dimensions
-        x = self.classifier(x)  # Apply classifier
+        x = x.permute(1, 0, 2)  # Permute back to (batch_size, seq_len, d_model) (32, 7200, 64)
+        x = x.flatten(start_dim=1)  # Flatten sequence steps and d_model dimensions (32, 7200*64)
+        x = self.classifier(x)  # Apply classifier to generate final output (32, 2)
         return x
 
 class LoRALayer(nn.Module):

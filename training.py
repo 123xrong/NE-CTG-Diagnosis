@@ -1,5 +1,6 @@
 import argparse
 import torch
+import wandb
 from load_and_preprocess_data import load_and_preprocess_data
 from models import CNN, EnhancedCNN, CNN_LSTM, CNN1D, EnhancedCNN1D, TimeSeriesTransformer
 from fineTuning import train_model
@@ -81,17 +82,21 @@ def main():
     model = get_model(args.model_type, args.input_size, args.features, args.d_model, args.input_size).to(device)
     
     # Pretraining
+    wandb.init(project="CTG", entity="xrong8", name="{args.model_type}_pretraining")
     print(f"Pretraining {args.model_type} on public dataset for {args.pretrain_epochs} epochs")
     train_model(model, public_train_loader, public_test_loader, args.input_size, device, num_epochs=args.pretrain_epochs)
     torch.save(model.state_dict(), 'pretrained_model.pth')
+    wandb.finish()
 
     # Load the pretrained model and setup for fine-tuning
     model.load_state_dict(torch.load('pretrained_model.pth'))
     setup_fine_tuning(model, args.fine_tuning_type)  # Set up model for the specific fine-tuning approach
 
     # Fine-tuning
+    wandb.init(project="CTG", entity="xrong8", name="{args.model_type}_fine-turning")
     print(f"Fine-tuning {args.model_type} on private dataset for {args.epochs} epochs")
     train_model(model, private_train_loader, private_test_loader, args.input_size, device, num_epochs=args.epochs)
+    wandb.finish()
 
     # Evaluation
     print(f"Evaluating {args.model_type} on private test set")
@@ -99,3 +104,23 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+    wandb.init(project="my_model_training", entity="your_username", name="Pretraining")
+    print(f"Pretraining {args.model_type} on public dataset for {args.pretrain_epochs} epochs")
+    train_model(model, public_train_loader, public_test_loader, args.input_size, device, num_epochs=args.pretrain_epochs, phase='Pretraining')
+    torch.save(model.state_dict(), 'pretrained_model.pth')
+    
+    eval_metrics = evaluate_model(model, public_test_loader, device)
+    wandb.log({"Pretraining Evaluation": eval_metrics})
+    wandb.finish()
+
+    # Fine-tuning
+    wandb.init(project="my_model_training", entity="your_username", name="Fine-tuning")
+    print(f"Fine-tuning {args.model_type} on private dataset for {args.epochs} epochs")
+    train_model(model, private_train_loader, private_test_loader, args.input_size, device, num_epochs=args.epochs, phase='Fine-tuning')
+    
+    eval_metrics = evaluate_model(model, private_test_loader, device)
+    wandb.log({"Fine-tuning Evaluation": eval_metrics})
+    wandb.finish()
+
+    print(f"Evaluating {args.model_type} on private test set")
