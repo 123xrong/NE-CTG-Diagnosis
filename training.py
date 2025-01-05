@@ -3,7 +3,7 @@ import torch
 import wandb
 from load_and_preprocess_data import load_and_preprocess_data
 from models import CNN, EnhancedCNN, CNN_LSTM, CNN1D, EnhancedCNN1D, TimeSeriesTransformer
-from fineTuning import train_model
+from evaluate import train_model
 from evaluate import evaluate_model
 from torch.utils.data import DataLoader, TensorDataset
 import matplotlib.pyplot as plt
