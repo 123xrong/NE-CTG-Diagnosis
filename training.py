@@ -59,6 +59,7 @@ def main():
     parser.add_argument('--fine_tuning_type', type=str, choices=['full_ft', 'linear_probing', 'lora'], required=True, help='Choose the fine-tuning method: full fine-tuning, linear probing, or LoRA')
 
     args = parser.parse_args()
+
     # Load and preprocess data (with or without segmentation)
     # Load and preprocess public data
     public_X_train, public_X_test, public_y_train, public_y_test = load_and_preprocess_data(
@@ -82,45 +83,29 @@ def main():
     model = get_model(args.model_type, args.input_size, args.features, args.d_model, args.input_size).to(device)
     
     # Pretraining
-    wandb.init(project="CTG", name=f"{args.model_type}_pretraining")
-    print(f"Pretraining {args.model_type} on public dataset for {args.pretrain_epochs} epochs")
-    train_model(model, public_train_loader, public_test_loader, args.input_size, device, num_epochs=args.pretrain_epochs)
-    torch.save(model.state_dict(), 'pretrained_model.pth')
-    wandb.finish()
+    with wandb.init(project="CTG", entity="your_username", name=f"{args.model_type}_pretraining", config=args):
+        print(f"Pretraining {args.model_type} on public dataset for {args.pretrain_epochs} epochs")
+        train_model(model, public_train_loader, public_test_loader, args.input_size, device, num_epochs=args.pretrain_epochs, phase='Pretraining')
+        torch.save(model.state_dict(), 'pretrained_model.pth')
 
-    # Load the pretrained model and setup for fine-tuning
+    # Load pretrained model and setup for fine-tuning
     model.load_state_dict(torch.load('pretrained_model.pth'))
-    setup_fine_tuning(model, args.fine_tuning_type)  # Set up model for the specific fine-tuning approach
+    setup_fine_tuning(model, args.fine_tuning_type)
 
     # Fine-tuning
-    wandb.init(project="CTG", name=f"{args.model_type}_fine-turning")
-    print(f"Fine-tuning {args.model_type} on private dataset for {args.epochs} epochs")
-    train_model(model, private_train_loader, private_test_loader, args.input_size, device, num_epochs=args.epochs)
-    wandb.finish()
+    with wandb.init(project="CTG", entity="your_username", name=f"{args.model_type}_fine-tuning", config=args):
+        print(f"Fine-tuning {args.model_type} on private dataset for {args.epochs} epochs")
+        train_model(model, private_train_loader, private_test_loader, args.input_size, device, num_epochs=args.epochs)
 
-    # Evaluation
+    # Evaluation and Logging
+    eval_metrics = evaluate_model(model, private_test_loader, device)
     print(f"Evaluating {args.model_type} on private test set")
-    evaluate_model(model, private_test_loader, device)
+    print(eval_metrics)  # Output eval metrics to console
+
+    # Log evaluation metrics to wandb
+    wandb.init(project="CTG", entity="your_username", name=f"{args.model_type}_evaluation", config=args)
+    wandb.log(eval_metrics)
+    wandb.finish()
 
 if __name__ == "__main__":
     main()
-
-    wandb.init(project="my_model_training", name="xrong8")
-    print(f"Pretraining {args.model_type} on public dataset for {args.pretrain_epochs} epochs")
-    train_model(model, public_train_loader, public_test_loader, args.input_size, device, num_epochs=args.pretrain_epochs, phase='Pretraining')
-    torch.save(model.state_dict(), 'pretrained_model.pth')
-    
-    eval_metrics = evaluate_model(model, public_test_loader, device)
-    wandb.log({"Pretraining Evaluation": eval_metrics})
-    wandb.finish()
-
-    # Fine-tuning
-    wandb.init(project="CTG", name="Fine-tuning")
-    print(f"Fine-tuning {args.model_type} on private dataset for {args.epochs} epochs")
-    train_model(model, private_train_loader, private_test_loader, args.input_size, device, num_epochs=args.epochs, phase='Fine-tuning')
-    
-    eval_metrics = evaluate_model(model, private_test_loader, device)
-    wandb.log({"Fine-tuning Evaluation": eval_metrics})
-    wandb.finish()
-
-    print(f"Evaluating {args.model_type} on private test set")

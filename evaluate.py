@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
+import wandb
 from torch.optim.lr_scheduler import StepLR
 import numpy as np
 import logging
@@ -18,7 +19,7 @@ def safe_convert_to_array(data_lists):
     padded_lists = [sublist + [np.nan] * (max_length - len(sublist)) for sublist in data_lists]
     return np.array(padded_lists)
 
-def train_model(model, train_loader, test_loader, input_size, device, num_epochs=30, num_runs=1, lr=0.001, step_size=10, gamma=0.1):
+def train_model(model, train_loader, test_loader, input_size, device, num_epochs=30, num_runs=1, lr=0.001, step_size=10, gamma=0.1, phase='Pretraining'):
     criterion = torch.nn.CrossEntropyLoss()
     train_loss_lists = []
     val_loss_lists = []
@@ -64,12 +65,17 @@ def train_model(model, train_loader, test_loader, input_size, device, num_epochs
             train_loss_list.append(avg_train_loss)
             val_loss_list.append(avg_val_loss)
 
+            # Log the average losses to wandb
+            wandb.log({f"{phase} Train Loss": avg_train_loss, f"{phase} Validation Loss": avg_val_loss, "epoch": epoch})
+
             logging.info(f"Epoch {epoch+1}: Train Loss: {avg_train_loss:.4f}, Validation Loss: {avg_val_loss:.4f}")
 
             if val_loss < best_val_loss:
                 best_val_loss = val_loss
                 early_stop_count = 0
                 torch.save(model.state_dict(), 'best_model.pth')
+                # Optionally, you might want to log the best model in wandb as well
+                wandb.save('best_model.pth')
             else:
                 early_stop_count += 1
                 if early_stop_count >= early_stop_patience:
@@ -97,8 +103,8 @@ def train_model(model, train_loader, test_loader, input_size, device, num_epochs
 
 def evaluate_model(model, data_loader, device):
     model.eval()  # Set the model to evaluation mode
-    true_labels = []
-    predictions = []
+    all_predictions = []
+    all_labels = []
 
     try:
         with torch.no_grad():  # Inference mode, no need to compute gradients
@@ -110,22 +116,27 @@ def evaluate_model(model, data_loader, device):
                 probs = torch.nn.functional.softmax(outputs, dim=1)
                 _, predicted_labels = torch.max(probs, dim=1)
                 
-                predictions.extend(predicted_labels.cpu().numpy())
-                true_labels.extend(labels.cpu().numpy())
+                all_predictions.append(predicted_labels)
+                all_labels.append(labels)
+
+        all_predictions = torch.cat(all_predictions).cpu().numpy()
+        all_labels = torch.cat(all_labels).cpu().numpy()
 
         # Calculate metrics
-        accuracy = accuracy_score(true_labels, predictions)
-        precision = precision_score(true_labels, predictions, average='macro', zero_division=0)
-        recall = recall_score(true_labels, predictions, average='macro')
-        f1 = f1_score(true_labels, predictions, average='macro')
+        accuracy = accuracy_score(all_labels, all_predictions)
+        precision = precision_score(all_labels, all_predictions, average='macro', zero_division=0)
+        recall = recall_score(all_labels, all_predictions, average='macro')
+        f1 = f1_score(all_labels, all_predictions, average='macro')
+
+        # Log metrics to wandb
+        wandb.log({'Evaluation Accuracy': accuracy,
+                   'Evaluation Precision': precision,
+                   'Evaluation Recall': recall,
+                   'Evaluation F1 Score': f1})
 
     except Exception as e:
-        print(f"Error during model evaluation: {e}")
-        # Provide default values if evaluation fails
-        accuracy = 0
-        precision = 0
-        recall = 0
-        f1 = 0
+        logging.error(f"Error during model evaluation: {e}")
+        accuracy = precision = recall = f1 = 0  # Default metrics in case of failure
 
     return {
         'accuracy': accuracy,
