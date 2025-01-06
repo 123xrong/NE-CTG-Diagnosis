@@ -105,7 +105,7 @@ def main():
 if __name__ == "__main__":
     main()
 
-    wandb.init(project="my_model_training", entity="your_username", name="Pretraining")
+    wandb.init(project="my_model_training", name="xrong8")
     print(f"Pretraining {args.model_type} on public dataset for {args.pretrain_epochs} epochs")
     train_model(model, public_train_loader, public_test_loader, args.input_size, device, num_epochs=args.pretrain_epochs, phase='Pretraining')
     torch.save(model.state_dict(), 'pretrained_model.pth')
