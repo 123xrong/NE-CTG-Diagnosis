@@ -83,7 +83,7 @@ def main():
     model = get_model(args.model_type, args.input_size, args.features, args.d_model, args.input_size).to(device)
     
     # Pretraining
-    with wandb.init(project="CTG", entity="your_username", name=f"{args.model_type}_pretraining", config=args):
+    with wandb.init(project="CTG", name=f"{args.model_type}_pretraining", config=args):
         print(f"Pretraining {args.model_type} on public dataset for {args.pretrain_epochs} epochs")
         train_model(model, public_train_loader, public_test_loader, args.input_size, device, num_epochs=args.pretrain_epochs, phase='Pretraining')
         torch.save(model.state_dict(), 'pretrained_model.pth')
@@ -93,7 +93,7 @@ def main():
     setup_fine_tuning(model, args.fine_tuning_type)
 
     # Fine-tuning
-    with wandb.init(project="CTG", entity="your_username", name=f"{args.model_type}_fine-tuning", config=args):
+    with wandb.init(project="CTG", name=f"{args.model_type}_fine-tuning", config=args):
         print(f"Fine-tuning {args.model_type} on private dataset for {args.epochs} epochs")
         train_model(model, private_train_loader, private_test_loader, args.input_size, device, num_epochs=args.epochs)
 
@@ -103,7 +103,7 @@ def main():
     print(eval_metrics)  # Output eval metrics to console
 
     # Log evaluation metrics to wandb
-    wandb.init(project="CTG", entity="your_username", name=f"{args.model_type}_evaluation", config=args)
+    wandb.init(project="CTG", name=f"{args.model_type}_evaluation", config=args)
     wandb.log(eval_metrics)
     wandb.finish()
 
