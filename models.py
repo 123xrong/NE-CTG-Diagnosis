@@ -92,8 +92,8 @@ class CNN_LSTM(nn.Module):
         super(CNN_LSTM, self).__init__()
 
         # Kernel, stride, and padding setup
-        kernel_size = 120  # To capture features with a receptive field size about 30 data points
-        stride = 4
+        kernel_size = 5  # To capture features with a receptive field size about 30 data points
+        stride = 1
         padding = kernel_size // 2  # Padding to maintain dimensionality
 
         # Define the convolutional layers using Sequential
@@ -104,9 +104,9 @@ class CNN_LSTM(nn.Module):
             nn.Conv1d(in_channels=32, out_channels=64, kernel_size=kernel_size, stride=stride, padding=padding),
             nn.ReLU(),
             nn.MaxPool1d(kernel_size=2, stride=2),
-            nn.Conv1d(in_channels=64, out_channels=128, kernel_size=kernel_size, stride=stride, padding=padding),
-            nn.ReLU(),
-            nn.MaxPool1d(kernel_size=2, stride=2)
+            # nn.Conv1d(in_channels=64, out_channels=128, kernel_size=kernel_size, stride=stride, padding=padding),
+            # nn.ReLU(),
+            # nn.MaxPool1d(kernel_size=2, stride=2)
         )
 
         # Compute the size of the flattened layer dynamically for LSTM input
@@ -127,11 +127,13 @@ class CNN_LSTM(nn.Module):
         dummy_input = torch.randn(1, 1, input_size)  # Simulate input in the expected shape
         dummy_output = self.features(dummy_input)
         # Return the number of features per time-step to the LSTM
+        print(dummy_output.shape)
         return dummy_output.shape[2]  # width dimension after conv layers
 
     def forward(self, x):
         x = self.features(x)
-        x = x.transpose(1, 2)  # Reshape for LSTM; needs (batch, seq_len, features)
+        #print(f"Shape after CNN: {x.shape}")
+        #x = x.transpose(1, 2)  # Reshape for LSTM; needs (batch, seq_len, features)
 
         # LSTM forward pass
         lstm_out, _ = self.lstm(x)
@@ -188,15 +190,15 @@ class EnhancedCNN1D(nn.Module):
         
         # Define the convolutional layers using Sequential
         self.features = nn.Sequential(
-            nn.Conv1d(in_channels=1, out_channels=32, kernel_size=120, stride=4, padding=120//2),
+            nn.Conv1d(in_channels=1, out_channels=32, kernel_size=5, stride=1, padding=2),
             nn.ReLU(),
-            nn.AvgPool1d(kernel_size=2, stride=2),
-            nn.Conv1d(in_channels=32, out_channels=64, kernel_size=120, stride=4, padding=120//2),
+            nn.MaxPool1d(kernel_size=2, stride=2),
+            nn.Conv1d(in_channels=32, out_channels=64, kernel_size=5, stride=1, padding=2),
             nn.ReLU(),
-            nn.AvgPool1d(kernel_size=2, stride=2),
-            nn.Conv1d(in_channels=64, out_channels=128, kernel_size=120, stride=4, padding=120//2),
+            nn.MaxPool1d(kernel_size=2, stride=2),
+            nn.Conv1d(in_channels=64, out_channels=128, kernel_size=5, stride=1, padding=2),
             nn.ReLU(),
-            nn.AvgPool1d(kernel_size=2, stride=2)
+            nn.MaxPool1d(kernel_size=2, stride=2)
         )
         
         # Dynamically compute the flattened size for the fully connected layers

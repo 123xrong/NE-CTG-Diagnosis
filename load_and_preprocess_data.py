@@ -71,7 +71,7 @@ def load_and_preprocess_data(data_path, features_to_use=None, test_size=0.2, ran
         with open(data_path, 'rb') as f:
             X, y = pickle.load(f)
     elif data_path.endswith('.npz'):
-        data = np.load(data_path)
+        data = np.load(data_path, allow_pickle=True)
         X, y = data['X'], data['y']
     else:
         raise ValueError("Unsupported file type. Use a .pickle or .npz file.")
