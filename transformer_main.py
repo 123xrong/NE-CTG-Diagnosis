@@ -7,6 +7,7 @@ from torch.utils.data import DataLoader, TensorDataset
 import matplotlib.pyplot as plt
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from tqdm import tqdm
+from train import train_model
 
 def main():
     # Parse command-line arguments
