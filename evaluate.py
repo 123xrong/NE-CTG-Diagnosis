@@ -20,7 +20,7 @@ def safe_convert_to_array(data_lists):
     padded_lists = [sublist + [np.nan] * (max_length - len(sublist)) for sublist in data_lists]
     return np.array(padded_lists)
 
-def train_model(model, train_loader, device, num_epochs=30, num_runs=1, lr=0.001, step_size=10, gamma=0.1, phase='Pretraining'):
+def train_model(model, train_loader, device, num_epochs=30, num_runs=1, lr=0.001, step_size=20, gamma=0.1, phase='Pretraining'):
     criterion = torch.nn.CrossEntropyLoss()
     train_loss_lists = []
 
@@ -45,7 +45,7 @@ def train_model(model, train_loader, device, num_epochs=30, num_runs=1, lr=0.001
                 optimizer.step()
 
                 train_loss += loss.item()
-
+            # normalize the loss by the number of batches
             avg_train_loss = train_loss / len(train_loader)
             train_loss_list.append(avg_train_loss)
  # Initialize a new wandb run for each epoch
@@ -113,7 +113,8 @@ def evaluate_model(model, data_loader, device):
         wandb.log({'Evaluation Accuracy': accuracy,
                    'Evaluation Precision': precision,
                    'Evaluation Recall': recall,
-                   'Evaluation F1 Score': f1})
+                   'Evaluation F1 Score': f1,
+                   'Evaluation ROC AUC': roc_auc})
 
     except Exception as e:
         logging.error(f"Error during model evaluation: {e}")
