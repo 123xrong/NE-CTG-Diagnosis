@@ -25,6 +25,7 @@ def train_model(model, train_loader, device, num_epochs=30, num_runs=1, lr=0.001
     train_loss_lists = []
 
     for run in range(num_runs):
+        wandb.init(project="CTG", name=f"{phase}_run_{run + 1}")
         logging.info(f"Starting training run {run + 1}/{num_runs}")
         optimizer = optim.Adam(model.parameters(), lr=lr)
         scheduler = StepLR(optimizer, step_size=step_size, gamma=gamma)
@@ -66,6 +67,7 @@ def train_model(model, train_loader, device, num_epochs=30, num_runs=1, lr=0.001
     return mean_train_losses, std_train_losses
 
 def evaluate_model(model, data_loader, device):
+    wandb.init(project="CTG", name="Model Evaluation")
     model.eval()  # Set the model to evaluation mode
     all_predictions = []
     all_labels = []
