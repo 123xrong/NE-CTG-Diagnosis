@@ -244,7 +244,8 @@ class TimeSeriesTransformer(nn.Module):
 
     def forward(self, x):
         # x shape: (batch_size, feature_num, seq_len)
-        x = x.permute(0, 2, 1)  # Permute to (batch_size, seq_len, feature_num)
+        print(f"Input shape: {x.shape}")  # Debugging line to check input shape
+        x = x.permute(0, 2, 1)  # Permute to (batch_size=32, seq_len, feature_num=d_model)
         x = self.embedding(x)  # Embedding to project features (batch_size, seq_len, d_model), (32, 7200, 64)
         x = x.permute(1, 0, 2)  # Permute to (seq_len, batch_size, d_model) for transformer (7200, 32, 64)
 
